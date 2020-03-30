@@ -24,7 +24,10 @@ The following ROS packages might need to be installed.
 ```
 effort_controllers
 joint_state_publisher
+joint_state_controller
 ackermann_msgs
+gazebo_ros_pkgs
+gazebo_ros_control
 ``` 
 The above ROS packages can be installed with the below command
 ```
