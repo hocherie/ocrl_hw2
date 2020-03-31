@@ -30,7 +30,7 @@ distance = np.insert(distance, 0, 0)/distance[-1]
 # Interpolation for different methods:
 # Either quadratic or cubic works best
 interpolations_methods = ['slinear', 'quadratic', 'cubic']
-alpha = np.linspace(0, 1, 75)
+alpha = np.linspace(0, 1, 100)
 
 interpolated_points = {}
 for method in interpolations_methods:
