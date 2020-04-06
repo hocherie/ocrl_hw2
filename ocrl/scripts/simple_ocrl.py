@@ -72,7 +72,7 @@ class SimpleOcrlNode:
       # spline configurations
       turning_radius = 1
       step_size = 0.5
-      
+
       waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
 
       # find heading-fitting spline
@@ -84,20 +84,8 @@ class SimpleOcrlNode:
           path = dubins.shortest_path(q0, q1, turning_radius)
           configurations, _ = path.sample_many(step_size)
           configurations = np.array(configurations)
-      #     print(configurations.shape)
           path_list = np.vstack((path_list, configurations))
-          # print(path_list.shape)
-      # waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
-      # # Linear length along the line:
-      # # (https://stackoverflow.com/questions/52014197/how-to-interpolate-a-2d-curve-in-python)
-      # distance = np.cumsum( np.sqrt(np.sum( np.diff(waypoints[:,:2], axis=0)**2, axis=1 )) )
-      # distance = np.insert(distance, 0, 0)/distance[-1]
 
-      # # Interpolate 
-      # interpolation_method = 'cubic' # (quadratic or cubic method worked best)
-      # alpha = np.linspace(0,1,500) # discretize
-      # interp_curve =  interp1d(distance, waypoints, kind=interpolation_method, axis=0)
-      # interp_points = interp_curve(alpha)
 
       # Publish as nav_msgs/Path message 
       path_msg = Path()
