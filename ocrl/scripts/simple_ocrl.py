@@ -9,6 +9,7 @@ from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseArray, Pose, Twist, PoseStamped
 from ackermann_msgs.msg import AckermannDriveStamped
 from scipy.interpolate import interp1d
+import dubins
 from angles import *
 
 import tf
@@ -68,34 +69,51 @@ class SimpleOcrlNode:
 
 
   def fitSpline(self,waypoints): 
+      # spline configurations
+      turning_radius = 1
+      step_size = 0.5
       
       waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
-      # Linear length along the line:
-      # (https://stackoverflow.com/questions/52014197/how-to-interpolate-a-2d-curve-in-python)
-      distance = np.cumsum( np.sqrt(np.sum( np.diff(waypoints[:,:2], axis=0)**2, axis=1 )) )
-      distance = np.insert(distance, 0, 0)/distance[-1]
 
-      # Interpolate 
-      interpolation_method = 'cubic' # (quadratic or cubic method worked best)
-      alpha = np.linspace(0,1,500) # discretize
-      interp_curve =  interp1d(distance, waypoints, kind=interpolation_method, axis=0)
-      interp_points = interp_curve(alpha)
+      # find heading-fitting spline
+      path_list = np.empty((0,3))
+      for i in range(waypoints.shape[0] - 1):
+          q0 = (waypoints[i,0], waypoints[i,1], waypoints[i,2])
+          q1 = (waypoints[i+1,0], waypoints[i+1,1], waypoints[i+1,2])
+
+          path = dubins.shortest_path(q0, q1, turning_radius)
+          configurations, _ = path.sample_many(step_size)
+          configurations = np.array(configurations)
+      #     print(configurations.shape)
+          path_list = np.vstack((path_list, configurations))
+          # print(path_list.shape)
+      # waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
+      # # Linear length along the line:
+      # # (https://stackoverflow.com/questions/52014197/how-to-interpolate-a-2d-curve-in-python)
+      # distance = np.cumsum( np.sqrt(np.sum( np.diff(waypoints[:,:2], axis=0)**2, axis=1 )) )
+      # distance = np.insert(distance, 0, 0)/distance[-1]
+
+      # # Interpolate 
+      # interpolation_method = 'cubic' # (quadratic or cubic method worked best)
+      # alpha = np.linspace(0,1,500) # discretize
+      # interp_curve =  interp1d(distance, waypoints, kind=interpolation_method, axis=0)
+      # interp_points = interp_curve(alpha)
 
       # Publish as nav_msgs/Path message 
       path_msg = Path()
       path_msg.header.stamp = rospy.Time.now()
       path_msg.header.frame_id = '/map'
-      for i in range(len(alpha)):
+      for i in range(path_list.shape[0]):
         pose = PoseStamped() 
-        pose.pose.position.x = interp_points[i,0]
-        pose.pose.position.y = interp_points[i,1]
+        pose.pose.position.x = path_list[i,0]
+        pose.pose.position.y = path_list[i,1]
         path_msg.poses.append(pose)
       
       
       self.spline_path_pub.publish(path_msg)
-      self.spline_points = interp_points
-      self.spline_distance = np.sum(np.sqrt(np.sum(np.diff(interp_points[:,:2], axis=0)**2, axis=1)))
-      self.spline_cum_dist = np.cumsum(np.sqrt(np.sum(np.diff(interp_points[:,:2], axis=0)**2, axis=1)))
+      self.spline_points = path_list
+      self.spline_distance = np.sum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
+      self.spline_cum_dist = np.cumsum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
       print("Published Spline Path. Distance (m): ", self.spline_distance)
 
   def trackPointTimerCallback(self, event):
