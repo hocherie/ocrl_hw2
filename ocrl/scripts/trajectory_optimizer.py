@@ -14,16 +14,13 @@ from angles import *
 
 import tf
 
-class SimpleOcrlNode:
-  """base class for processing waypoints to give control output"""
+class TrajectoryOptimizerNode:
+  """blass for processing waypoints to give dynamically feasible trajectory"""
   def __init__(self):
     # Parameters
-    self.nominal_speed = 2 
 
     # Initialize Publishers
-    self.cmd_pub = rospy.Publisher('/ackermann_vehicle/ackermann_cmd', AckermannDriveStamped, queue_size=10)
     self.spline_path_pub = rospy.Publisher('/spline_path', Path, queue_size=10)
-    self.track_point_pub = rospy.Publisher('/track_point', PoseStamped, queue_size=10)
     
     # Initialize Subscribers and relevant variables
     rospy.Subscriber("/ackermann_vehicle/waypoints",
@@ -39,9 +36,9 @@ class SimpleOcrlNode:
     rospy.Subscriber("/ackermann_vehicle/ground_truth/state",
                      Odometry, self.vehicleStateCallback)
 
+    self.known_state = False
     # Marks time we get first spline path as spline_start_time, and starts outputting tracking point and associated commands
-    rospy.wait_for_message("/spline_path", Path, 10)
-    self.got_waypoints = True
+    rospy.wait_for_message("/spline_path", Path, 5)
     self.spline_start_time = rospy.Time.now()
     self.track_pt_timer = rospy.Timer(rospy.Duration(0.02), self.trackPointTimerCallback) # track point based on time from spline_path start time
 
@@ -49,29 +46,34 @@ class SimpleOcrlNode:
   # Keep this from pure_pursuit.py
   def waypointCallback(self,msg):
     if self.got_waypoints == False:
-      for i in range(len(msg.poses)):
-        self.waypoints[i, 0] = msg.poses[i].position.x
-        self.waypoints[i, 1] = msg.poses[i].position.y
-        self.waypoints[i, 2] = euler_from_quaternion([msg.poses[i].orientation.x, msg.poses[i].orientation.y, msg.poses[i].orientation.z, msg.poses[i].orientation.w])[2]
-      self.fitSpline(self.waypoints)
+        for i in range(len(msg.poses)):
+            self.waypoints[i, 0] = msg.poses[i].position.x
+            self.waypoints[i, 1] = msg.poses[i].position.y
+            self.waypoints[i, 2] = euler_from_quaternion([msg.poses[i].orientation.x, msg.poses[i].orientation.y, msg.poses[i].orientation.z, msg.poses[i].orientation.w])[2]
+        self.got_waypoints = True
+        print(self.waypoints)
+        self.fitSpline(self.waypoints)
 
   # Keep this from pure_pursuit.py
   def vehicleStateCallback(self,msg):
-    self.rear_axle_center.position.x = msg.pose.pose.position.x
-    self.rear_axle_center.position.y = msg.pose.pose.position.y
-    self.rear_axle_center.orientation = msg.pose.pose.orientation
+    if self.known_state == False:
+        self.rear_axle_center.position.x = msg.pose.pose.position.x
+        self.rear_axle_center.position.y = msg.pose.pose.position.y
+        self.rear_axle_center.orientation = msg.pose.pose.orientation
 
-    self.rear_axle_theta = euler_from_quaternion(
-      [self.rear_axle_center.orientation.x, self.rear_axle_center.orientation.y, self.rear_axle_center.orientation.z,
-      self.rear_axle_center.orientation.w])[2]
+        self.rear_axle_theta = euler_from_quaternion(
+        [self.rear_axle_center.orientation.x, self.rear_axle_center.orientation.y, self.rear_axle_center.orientation.z,
+        self.rear_axle_center.orientation.w])[2]
 
-    self.rear_axle_velocity.linear = msg.twist.twist.linear
-    self.rear_axle_velocity.angular = msg.twist.twist.angular
+        self.rear_axle_velocity.linear = msg.twist.twist.linear
+        self.rear_axle_velocity.angular = msg.twist.twist.angular
+        self.known_state = True
+        print(self.rear_axle_center.position)
 
 
   def fitSpline(self,waypoints): 
       # spline configurations
-      turning_radius = 0.67
+      turning_radius = 1
       step_size = 0.5
 
       waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
@@ -147,7 +149,7 @@ if __name__ == '__main__':
 
   rospy.init_node('simple_ocrl_node')
   rospy.loginfo('simple_ocrl_node initialized')
-  node = SimpleOcrlNode()
+  node = TrajectoryOptimizerNode()
   rospy.spin()
 
 
