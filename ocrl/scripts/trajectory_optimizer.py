@@ -65,7 +65,19 @@ class TrajectoryOptimizerNode:
       self.rear_axle_velocity.angular = msg.twist.twist.angular
       self.got_vehicle_state = True
 
-
+  @staticmethod
+  def theta_from_path(path, index, mode = 'forward'):
+      current = path[index]
+      if index != 0:
+        prev = index-1
+      if index != len(path)-1:
+        succ = index+1
+      
+      if mode == 'forward':
+        vector = np.array([1,0])
+      theta = np.arctan2(vector[1],vector[0])
+      return theta
+      
   def fitSpline(self,waypoints): 
       # spline configurations
       turning_radius = 0.67
@@ -84,7 +96,6 @@ class TrajectoryOptimizerNode:
           configurations = np.array(configurations)
           path_list = np.vstack((path_list, configurations))
 
-
       self.spline_points = path_list
       self.spline_distance = np.sum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
       self.spline_cum_dist = np.cumsum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
@@ -100,6 +111,13 @@ class TrajectoryOptimizerNode:
         pose = PoseStamped() 
         pose.pose.position.x = path_list[i,0]
         pose.pose.position.y = path_list[i,1]
+        theta = path_list[i,2]
+        quat = quaternion_from_euler(0,0,theta)
+        pose.pose.orientation.x = quat[0]
+        pose.pose.orientation.y = quat[1]
+        pose.pose.orientation.z = quat[2]
+        pose.pose.orientation.w = quat[3]
+
         pose.header.stamp = rospy.Time.from_sec(i*self.dt)
         path_msg.poses.append(pose)
   
