@@ -8,7 +8,7 @@ def curvature(x, y, dt):
     dy_dt = np.gradient(y) / dt
     d2x_dt2 = np.gradient(dx_dt) / dt
     d2y_dt2 = np.gradient(dy_dt) / dt
-    curvature = np.abs(d2x_dt2 * dy_dt - dx_dt * d2y_dt2) / (dx_dt * dx_dt + dy_dt * dy_dt)**1.5
+    curvature = -(d2x_dt2 * dy_dt - dx_dt * d2y_dt2) / (dx_dt * dx_dt + dy_dt * dy_dt)**1.5
     return curvature
 
 

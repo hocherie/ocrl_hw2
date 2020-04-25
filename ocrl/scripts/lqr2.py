@@ -23,8 +23,7 @@ class LqrNode:
   def __init__(self):
     # Parameters
     # self.target_speed = 10.0
-    self.target_speed = 1.0
-
+    self.target_speed = 3
     self.lqr_params = dict()
     self.lqr_params['maxsimtime'] = 20.0
     self.lqr_params['goal_dis'] = 0.3
@@ -32,9 +31,11 @@ class LqrNode:
     self.lqr_params['lqr_Q'] = np.eye(5)
     self.lqr_params['lqr_R'] = np.eye(2)
     self.lqr_params['wheelbase'] = 0.335
-    self.lqr_params['max_steer'] = np.deg2rad(30.0)
+    self.lqr_params['max_steer'] = np.deg2rad(20.0)
 
     self.e, self.e_th = 0.0, 0.0
+    self.last_ind = 0
+    self.is_not_done = True
 
     # Initialize Publishers
     self.cmd_pub = rospy.Publisher('/ackermann_vehicle/ackermann_cmd', AckermannDriveStamped, queue_size=10)
@@ -87,114 +88,140 @@ class LqrNode:
     self.rear_axle_velocity.linear = msg.twist.twist.linear
     self.rear_axle_velocity.angular = msg.twist.twist.angular
 
-
+    # Stop when end of waypoints
+    waypoint_tol = 0.2 
+    cur_pos_2d = np.array([msg.pose.pose.position.x, msg.pose.pose.position.y])
+    
+    dist_to_goal = np.linalg.norm(self.spline_points[-1,0:2] - cur_pos_2d)
+    print(dist_to_goal)
+    if (dist_to_goal < waypoint_tol):
+      print("Done!!")
+      self.is_not_done = False
 
 # ---------------------------------------------
 
 
 
   def trackPointTimerCallback(self, event):
-    print("track point timer callback")
-    # time_since_start = (rospy.Time.now() - self.spline_start_time).to_sec() 
-    # dist_along_spline = self.nominal_speed * time_since_start
-    # track_point_ind = np.argwhere(self.spline_cum_dist > dist_along_spline)[0]
-    # track_point_x = self.spline_points[track_point_ind, 0]
-    # track_point_y = self.spline_points[track_point_ind, 1]
+    if self.is_not_done:
+      # print("track point timer callback")
+      # time_since_start = (rospy.Time.now() - self.spline_start_time).to_sec() 
+      # dist_along_spline = self.nominal_speed * time_since_start
+      # track_point_ind = np.argwhere(self.spline_cum_dist > dist_along_spline)[0]
+      # track_point_x = self.spline_points[track_point_ind, 0]
+      # track_point_y = self.spline_points[track_point_ind, 1]
 
-    # # Publish track point pose
-    # track_pose_msg = PoseStamped() 
-    # track_pose_msg.header.stamp = rospy.Time.now() 
-    # track_pose_msg.header.frame_id = '/map'
-    # track_pose_msg.pose.position.x = track_point_x
-    # track_pose_msg.pose.position.y = track_point_y
-    # self.track_point_pub.publish(track_pose_msg)
+      # # Publish track point pose
+      # track_pose_msg = PoseStamped() 
+      # track_pose_msg.header.stamp = rospy.Time.now() 
+      # track_pose_msg.header.frame_id = '/map'
+      # track_pose_msg.pose.position.x = track_point_x
+      # track_pose_msg.pose.position.y = track_point_y
+      # self.track_point_pub.publish(track_pose_msg)
 
-    # # Calculate Commands based on Tracking Point
-    # dx = track_point_x - self.rear_axle_center.position.x
-    # dy = track_point_y - self.rear_axle_center.position.y
-    # lookahead_dist = np.sqrt(dx * dx + dy * dy)
-    # lookahead_theta = math.atan2(dy, dx)
-    # alpha = shortest_angular_distance(self.rear_axle_theta, lookahead_theta)
+      # # Calculate Commands based on Tracking Point
+      # dx = track_point_x - self.rear_axle_center.position.x
+      # dy = track_point_y - self.rear_axle_center.position.y
+      # lookahead_dist = np.sqrt(dx * dx + dy * dy)
+      # lookahead_theta = math.atan2(dy, dx)
+      # alpha = shortest_angular_distance(self.rear_axle_theta, lookahead_theta)
 
-    cmd = AckermannDriveStamped()
-    cmd.header.stamp = rospy.Time.now()
-    cmd.header.frame_id = "base_link"
-
-
-    # # Publishing constant speed of 1m/s
-    # cmd.drive.speed = self.target_speed
-
-    # # Reactive steering
-    # if alpha < 0:
-    #   st_ang = max(-max_steering_angle, alpha)
-    # else:
-    #   st_ang = min(max_steering_angle, alpha)
-    # cmd.drive.steering_angle = st_ang
+      cmd = AckermannDriveStamped()
+      cmd.header.stamp = rospy.Time.now()
+      cmd.header.frame_id = "base_link"
 
 
-    # -------------------
+      # # Publishing constant speed of 1m/s
+      # cmd.drive.speed = self.target_speed
 
-    self.lqr_params['dt'] = 0.1 #self.spline_points[-1,3] - self.spline_points[-2,3]
-    # print("DT", self.spline_points)
-
-    goal = [self.spline_points[-1,0], self.spline_points[-1,1]] # goal is last x, y point in spline
-    cx = self.spline_points[:,0]
-    cy = self.spline_points[:,1]
-    cyaw = self.spline_points[:,2]
-    ck = curvature(cx, cy, self.lqr_params['dt'])
-
-    speed_profile = calc_speed_profile(cyaw, self.target_speed)
-
-    # ------------------------------
-
-    T = self.lqr_params['maxsimtime']
-    goal_dis = self.lqr_params['goal_dis']
-    stop_speed = self.lqr_params['stop_speed']
-    lqr_Q = self.lqr_params['lqr_Q']
-    lqr_R = self.lqr_params['lqr_R']
-    dt = self.lqr_params['dt']
-    wheelbase = self.lqr_params['wheelbase']
-
-    x = self.rear_axle_center.position.x
-    y = self.rear_axle_center.position.y
-    yaw = self.rear_axle_theta
-
-    # TODO is this an issue computing velocity this way?
-    # TODO we really need speed? will we never get negative values here?
-
-    # self.rear_axle_velocity.linear
-    v = np.linalg.norm([self.rear_axle_velocity.linear.x, self.rear_axle_velocity.linear.y])
-
-    state = State(x=x, y=y, yaw=yaw, v=v)
-
-    # initialize e and e_th above
-
-    dl, target_ind, self.e, self.e_th, ai = lqr_speed_steering_control(
-        state, cx, cy, cyaw, ck, self.e, self.e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase)
-
-    cmd.drive.speed = v + ai * dt
-    cmd.drive.steering_angle = dl
-
-    # TODO
-    # IS TARGET SPEED = 10 WHAT WE WANT??????
-
-    
-    # TODO calc_nearest_index is not the thing we want to do, it messes with control when spline intersects with itself
-    # TODO maybe the curvature of the spline is not being computed right... it is terrible at turning
-    # TODO implement stop condition, it just runs around after it 'gets' to the goal
+      # # Reactive steering
+      # if alpha < 0:
+      #   st_ang = max(-max_steering_angle, alpha)
+      # else:
+      #   st_ang = min(max_steering_angle, alpha)
+      # cmd.drive.steering_angle = st_ang
 
 
-    # -------------------------------
+      # -------------------
 
-    # t, x, y, yaw, v, delta = do_simulation(cx, cy, cyaw, ck, sp, goal, self.lqr_params)
+      self.lqr_params['dt'] = 0.02 #self.spline_points[-1,3] - self.spline_points[-2,3]
+      # print("DT", self.spline_points)
 
-    # for i in range(1, len(x)):
-    #     cmd.drive.speed = v[i]
-    #     cmd.drive.steering_angle = delta[i]
+      goal = [self.spline_points[-1,0], self.spline_points[-1,1]] # goal is last x, y point in spline
+      cx = self.spline_points[:,0]
+      cy = self.spline_points[:,1]
+      cyaw = self.spline_points[:,2]
+      ck = curvature(cx, cy, self.lqr_params['dt'])
 
-    # -------------------------
+      speed_profile = calc_speed_profile(cyaw, self.target_speed)
 
-    self.cmd_pub.publish(cmd) # CMD includes steering_angle
+      # ------------------------------
+
+      T = self.lqr_params['maxsimtime']
+      goal_dis = self.lqr_params['goal_dis']
+      stop_speed = self.lqr_params['stop_speed']
+      lqr_Q = self.lqr_params['lqr_Q']
+      lqr_R = self.lqr_params['lqr_R']
+      dt = self.lqr_params['dt']
+      wheelbase = self.lqr_params['wheelbase']
+
+      x = self.rear_axle_center.position.x
+      y = self.rear_axle_center.position.y
+      yaw = self.rear_axle_theta
+
+      # TODO is this an issue computing velocity this way?
+      # TODO we really need speed? will we never get negative values here?
+
+      # self.rear_axle_velocity.linear
+      v = np.linalg.norm([self.rear_axle_velocity.linear.x, self.rear_axle_velocity.linear.y])
+
+      state = State(x=x, y=y, yaw=yaw, v=v)
+
+      # initialize e and e_th above
+
+      dl, target_ind, self.e, self.e_th, ai = lqr_speed_steering_control(
+          state, cx, cy, cyaw, ck, self.e, self.e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase, self.last_ind)
+      # print("Target_ind", target_ind)
+      # Publish track point pose
+      track_pose_msg = PoseStamped() 
+      track_pose_msg.header.stamp = rospy.Time.now() 
+      track_pose_msg.header.frame_id = '/map'
+      track_pose_msg.pose.position.x = cx[target_ind]
+      track_pose_msg.pose.position.y = cy[target_ind]
+      quat = quaternion_from_euler(0,0,cyaw[target_ind])
+      track_pose_msg.pose.orientation.x = quat[0]
+      track_pose_msg.pose.orientation.y = quat[1]
+      track_pose_msg.pose.orientation.z = quat[2]
+      track_pose_msg.pose.orientation.w = quat[3]
+
+      self.track_point_pub.publish(track_pose_msg)
+
+
+
+      self.last_ind = target_ind
+      cmd.drive.speed = v + ai * dt
+      cmd.drive.steering_angle = dl
+
+      # TODO
+      # IS TARGET SPEED = 10 WHAT WE WANT??????
+
+      
+      # TODO calc_nearest_index is not the thing we want to do, it messes with control when spline intersects with itself
+      # TODO maybe the curvature of the spline is not being computed right... it is terrible at turning
+      # TODO implement stop condition, it just runs around after it 'gets' to the goal
+
+
+      # -------------------------------
+
+      # t, x, y, yaw, v, delta = do_simulation(cx, cy, cyaw, ck, sp, goal, self.lqr_params)
+
+      # for i in range(1, len(x)):
+      #     cmd.drive.speed = v[i]
+      #     cmd.drive.steering_angle = delta[i]
+
+      # -------------------------
+
+      self.cmd_pub.publish(cmd) # CMD includes steering_angle
 
 
 if __name__ == '__main__':

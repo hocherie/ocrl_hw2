@@ -8,6 +8,7 @@ from common import *
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseArray, Pose, Twist, PoseStamped
 from ackermann_msgs.msg import AckermannDriveStamped
+# from visualization_msgs
 from scipy.interpolate import interp1d
 import dubins
 from angles import *
@@ -24,6 +25,7 @@ class TrajectoryOptimizerNode:
     self.cmd_pub = rospy.Publisher('/ackermann_vehicle/ackermann_cmd', AckermannDriveStamped, queue_size=10)
     self.spline_path_pub = rospy.Publisher('/spline_path', Path, queue_size=10)
     self.track_point_pub = rospy.Publisher('/track_point', PoseStamped, queue_size=10)
+    # self.completed_waypoint_pub = rospy.Publisher('/completed_waypoints', )
     
     # Initialize Subscribers and relevant variables
     rospy.Subscriber("/ackermann_vehicle/waypoints",
@@ -80,8 +82,8 @@ class TrajectoryOptimizerNode:
       
   def fitSpline(self,waypoints): 
       # spline configurations
-      turning_radius = 0.67
-      step_size = 0.5
+      turning_radius = 2.5
+      step_size = 0.1
 
       waypoints = np.insert(waypoints, 0, [0,0,0], axis=0)# prepend zero state to waypoints # TODO: check yaw
 

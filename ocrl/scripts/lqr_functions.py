@@ -11,7 +11,7 @@ import numpy as np
 import scipy.linalg as la
 
 L = 0.335
-max_steer = np.deg2rad(30)
+max_steer = np.deg2rad(25)
 class State:
 
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0):
@@ -24,8 +24,10 @@ class State:
 def update(state, a, delta, dt):
 
     if delta >= max_steer:
+        print("Over max_steer", delta)
         delta = max_steer
     if delta <= - max_steer:
+        print("Under max_steer", delta)
         delta = - max_steer
 
     state.x = state.x + state.v * math.cos(state.yaw) * dt
@@ -79,8 +81,8 @@ def dlqr(A, B, Q, R):
     return K, X, eig_result[0]
 
 
-def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt, wheelbase):
-    ind, e = calc_nearest_index(state, cx, cy, cyaw)
+def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt, wheelbase, last_ind):
+    ind, e = calc_nearest_index(state, cx, cy, cyaw, last_ind)
 
     tv = sp[ind]
 
@@ -137,17 +139,28 @@ def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt,
     # calc steering input
     ff = math.atan2(L * k, 1)  # feedforward steering angle
     fb = pi_2_pi(ustar[0, 0])  # feedback steering angle
+    # print("Steering angles (ff, fb, k)", round(np.rad2deg(ff), 4), round(np.rad2deg(fb),4), round(np.rad2deg(k), 4))
     delta = ff + fb
 
     # calc accel input
     accel = ustar[1, 0]
 
+    if delta >= max_steer:
+        # print("Over max_steer", delta)
+        delta = max_steer
+    if delta <= - max_steer:
+        # print("Under max_steer", delta)
+        delta = - max_steer
+    # print("Output delta (Deg)", np.rad2deg(delta))
     return delta, ind, e, th_e, accel
 
 
-def calc_nearest_index(state, cx, cy, cyaw):
-    dx = [state.x - icx for icx in cx]
-    dy = [state.y - icy for icy in cy]
+def calc_nearest_index(state, cx, cy, cyaw, last_ind, num_ind_search = 5):
+    cx_trim = cx[last_ind:last_ind+num_ind_search]
+    cy_trim = cy[last_ind:last_ind+num_ind_search]
+    cyaw_trim = cyaw[last_ind:last_ind+num_ind_search]
+    dx = [state.x - icx for icx in cx_trim]
+    dy = [state.y - icy for icy in cy_trim]
 
     d = [idx ** 2 + idy ** 2 for (idx, idy) in zip(dx, dy)]
 
@@ -157,13 +170,13 @@ def calc_nearest_index(state, cx, cy, cyaw):
 
     mind = math.sqrt(mind)
 
-    dxl = cx[ind] - state.x
-    dyl = cy[ind] - state.y
+    dxl = cx_trim[ind] - state.x
+    dyl = cy_trim[ind] - state.y
 
-    angle = pi_2_pi(cyaw[ind] - math.atan2(dyl, dxl))
+    angle = pi_2_pi(cyaw_trim[ind] - math.atan2(dyl, dxl))
     if angle < 0:
         mind *= -1
-
+    ind += last_ind 
     return ind, mind
 
 
@@ -191,7 +204,7 @@ def do_simulation(cx, cy, cyaw, ck, speed_profile, goal, lqr_params):
 
     while T >= time:
         dl, target_ind, e, e_th, ai = lqr_speed_steering_control(
-            state, cx, cy, cyaw, ck, e, e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase)
+            state, cx, cy, cyaw, ck, e, e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase, last_ind)
 
         state = update(state, ai, dl, dt)
 
