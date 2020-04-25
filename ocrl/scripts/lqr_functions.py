@@ -78,7 +78,7 @@ def dlqr(A, B, Q, R):
     return K, X, eig_result[0]
 
 
-def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt):
+def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt, wheelbase):
     ind, e = calc_nearest_index(state, cx, cy, cyaw)
 
     tv = sp[ind]
@@ -106,7 +106,7 @@ def lqr_speed_steering_control(state, cx, cy, cyaw, ck, pe, pth_e, sp, Q, R, dt)
     #     v/L, 0.0
     #     0.0, dt]
     B = np.zeros((5, 2))
-    B[3, 0] = v / L
+    B[3, 0] = v / wheelbase
     B[4, 1] = dt
 
     K, _, _ = dlqr(A, B, Q, R)
@@ -172,8 +172,9 @@ def do_simulation(cx, cy, cyaw, ck, speed_profile, goal, lqr_params):
     goal_dis = lqr_params['goal_dis']
     stop_speed = lqr_params['stop_speed']
     lqr_Q = lqr_params['lqr_Q']
-    lqr_Q = lqr_params['lqr_R']
+    lqr_R = lqr_params['lqr_R']
     dt = lqr_params['dt']
+    wheelbase = lqr_params['wheelbase']
 
     state = State(x=-0.0, y=-0.0, yaw=0.0, v=0.0)
 
@@ -189,7 +190,7 @@ def do_simulation(cx, cy, cyaw, ck, speed_profile, goal, lqr_params):
 
     while T >= time:
         dl, target_ind, e, e_th, ai = lqr_speed_steering_control(
-            state, cx, cy, cyaw, ck, e, e_th, speed_profile, lqr_Q, lqr_R, dt)
+            state, cx, cy, cyaw, ck, e, e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase)
 
         state = update(state, ai, dl, dt)
 
