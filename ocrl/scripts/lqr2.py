@@ -14,6 +14,7 @@ from angles import *
 
 import tf
 
+import numpy as np
 from lqr_functions import *
 from spline_functions import *
 
@@ -21,7 +22,8 @@ class LqrNode:
   """base class for processing waypoints to give control output"""
   def __init__(self):
     # Parameters
-    self.target_speed = 10.0
+    # self.target_speed = 10.0
+    self.target_speed = 1.0
 
     self.lqr_params = dict()
     self.lqr_params['maxsimtime'] = 20.0
@@ -31,6 +33,8 @@ class LqrNode:
     self.lqr_params['lqr_R'] = np.eye(2)
     self.lqr_params['wheelbase'] = 0.335
     self.lqr_params['max_steer'] = np.deg2rad(30.0)
+
+    self.e, self.e_th = 0.0, 0.0
 
     # Initialize Publishers
     self.cmd_pub = rospy.Publisher('/ackermann_vehicle/ackermann_cmd', AckermannDriveStamped, queue_size=10)
@@ -139,15 +143,56 @@ class LqrNode:
     cyaw = self.spline_points[:,2]
     ck = curvature(cx, cy, self.lqr_params['dt'])
 
-    sp = calc_speed_profile(cyaw, self.target_speed)
+    speed_profile = calc_speed_profile(cyaw, self.target_speed)
 
-    t, x, y, yaw, v, delta = do_simulation(cx, cy, cyaw, ck, sp, goal, self.lqr_params)
+    # ------------------------------
 
-    for i in range(1, len(x)):
-        cmd.drive.speed = v[i]
-        cmd.drive.steering_angle = delta[i]
+    T = self.lqr_params['maxsimtime']
+    goal_dis = self.lqr_params['goal_dis']
+    stop_speed = self.lqr_params['stop_speed']
+    lqr_Q = self.lqr_params['lqr_Q']
+    lqr_R = self.lqr_params['lqr_R']
+    dt = self.lqr_params['dt']
+    wheelbase = self.lqr_params['wheelbase']
 
-    # -------------------
+    x = self.rear_axle_center.position.x
+    y = self.rear_axle_center.position.y
+    yaw = self.rear_axle_theta
+
+    # TODO is this an issue computing velocity this way?
+    # TODO we really need speed? will we never get negative values here?
+
+    # self.rear_axle_velocity.linear
+    v = np.linalg.norm([self.rear_axle_velocity.linear.x, self.rear_axle_velocity.linear.y])
+
+    state = State(x=x, y=y, yaw=yaw, v=v)
+
+    # initialize e and e_th above
+
+    dl, target_ind, self.e, self.e_th, ai = lqr_speed_steering_control(
+        state, cx, cy, cyaw, ck, self.e, self.e_th, speed_profile, lqr_Q, lqr_R, dt, wheelbase)
+
+    cmd.drive.speed = v + ai * dt
+    cmd.drive.steering_angle = dl
+
+    # TODO
+    # IS TARGET SPEED = 10 WHAT WE WANT??????
+
+    
+    # TODO calc_nearest_index is not the thing we want to do, it messes with control when spline intersects with itself
+    # TODO maybe the curvature of the spline is not being computed right... it is terrible at turning
+    # TODO implement stop condition, it just runs around after it 'gets' to the goal
+
+
+    # -------------------------------
+
+    # t, x, y, yaw, v, delta = do_simulation(cx, cy, cyaw, ck, sp, goal, self.lqr_params)
+
+    # for i in range(1, len(x)):
+    #     cmd.drive.speed = v[i]
+    #     cmd.drive.steering_angle = delta[i]
+
+    # -------------------------
 
     self.cmd_pub.publish(cmd) # CMD includes steering_angle
 
