@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.linalg as la
 
-
+L = 0.335
+max_steer = np.deg2rad(30)
 class State:
 
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0):
@@ -172,7 +173,7 @@ def do_simulation(cx, cy, cyaw, ck, speed_profile, goal, lqr_params):
     goal_dis = lqr_params['goal_dis']
     stop_speed = lqr_params['stop_speed']
     lqr_Q = lqr_params['lqr_Q']
-    lqr_Q = lqr_params['lqr_R']
+    lqr_R = lqr_params['lqr_R']
     dt = lqr_params['dt']
 
     state = State(x=-0.0, y=-0.0, yaw=0.0, v=0.0)

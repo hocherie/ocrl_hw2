@@ -54,6 +54,7 @@ class LqrNode:
     self.track_pt_timer = rospy.Timer(rospy.Duration(0.02), self.trackPointTimerCallback) # track point based on time from spline_path start tim
 
   def trajectoryCallback(self,msg):
+      print("trajectory callback")
       path_list = []
 
       for i in range(len(msg.poses)):
@@ -64,7 +65,7 @@ class LqrNode:
         #pose.pose.position.y = path_list[i,1]
     
       path_list = np.array(path_list)
-      print(path_list)
+      # print(path_list)
       self.spline_points = path_list
       self.spline_distance = np.sum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
       self.spline_cum_dist = np.cumsum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
@@ -89,6 +90,7 @@ class LqrNode:
 
 
   def trackPointTimerCallback(self, event):
+    print("track point timer callback")
     # time_since_start = (rospy.Time.now() - self.spline_start_time).to_sec() 
     # dist_along_spline = self.nominal_speed * time_since_start
     # track_point_ind = np.argwhere(self.spline_cum_dist > dist_along_spline)[0]
@@ -128,7 +130,8 @@ class LqrNode:
 
     # -------------------
 
-    self.lqr_params['dt'] = self.spline_points[-1,3] - self.spline_points[-2,3]
+    self.lqr_params['dt'] = 0.1 #self.spline_points[-1,3] - self.spline_points[-2,3]
+    # print("DT", self.spline_points)
 
     goal = [self.spline_points[-1,0], self.spline_points[-1,1]] # goal is last x, y point in spline
     cx = self.spline_points[:,0]
