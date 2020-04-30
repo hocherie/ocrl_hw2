@@ -103,7 +103,7 @@ class TrajectoryOptimizerNode:
       self.spline_cum_dist = np.cumsum(np.sqrt(np.sum(np.diff(path_list[:,:2], axis=0)**2, axis=1)))
       
       total_time = self.spline_distance/self.nominal_speed
-      print("Duration of trajectory={}".format(total_time))
+      #print("Duration of trajectory={}".format(total_time))
       self.dt = total_time/len(path_list)
       # Publish as nav_msgs/Path message 
       path_msg = Path()
@@ -126,7 +126,7 @@ class TrajectoryOptimizerNode:
       
 
       self.spline_path_pub.publish(path_msg)
-      print("Published Spline Path. Distance (m): ", self.spline_distance)
+      #print("Published Spline Path. Distance (m): ", self.spline_distance)
 
 if __name__ == '__main__':
 
