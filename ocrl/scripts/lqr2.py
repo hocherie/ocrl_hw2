@@ -122,7 +122,7 @@ class LqrNode:
           self.waypoints_hit.add(wi+1)
           print("Got within <{} m,{} degrees> of waypoint {}.".format(position_error[wi], angle_error[wi],wi+1))
           if self.is_not_done == False:
-            self.trajectory_file.write("{}".format(list(self.waypoints_hit)))
+            self.trajectory_file.write("{}\n".format(list(self.waypoints_hit)))
             print("Done!!")
             rospy.signal_shutdown("DONE")
 
