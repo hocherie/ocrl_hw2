@@ -74,6 +74,7 @@ class LqrNode:
         self.waypoints[i, 1] = msg.poses[i].position.y
         self.waypoints[i, 2] = euler_from_quaternion([msg.poses[i].orientation.x, msg.poses[i].orientation.y, msg.poses[i].orientation.z, msg.poses[i].orientation.w])[2]
         self.waypoints = np.array(self.waypoints)
+        print(self.waypoints)
       self.got_waypoints = True
         
   def trajectoryCallback(self,msg):
@@ -92,48 +93,55 @@ class LqrNode:
 
   # Keep this from pure_pursuit.py
   def vehicleStateCallback(self,msg):
+    if self.got_waypoints:
 
-    x = msg.pose.pose.position.x
-    y = msg.pose.pose.position.y
-    theta = euler_from_quaternion([msg.pose.pose.orientation.x,msg.pose.pose.orientation.y,msg.pose.pose.orientation.z,msg.pose.pose.orientation.w])[2]
-    self.rear_axle_center.position.x = x
-    self.rear_axle_center.position.y = y
-    self.rear_axle_theta = theta
-    self.rear_axle_velocity.linear = msg.twist.twist.linear
-    self.rear_axle_velocity.angular = msg.twist.twist.angular
-    
-    pose_string = "{:0.2f},{:0.2f},{:0.3f}\n".format(self.rear_axle_center.position.x , self.rear_axle_center.position.y, theta)
+      x = msg.pose.pose.position.x
+      y = msg.pose.pose.position.y
+      theta = euler_from_quaternion([msg.pose.pose.orientation.x,msg.pose.pose.orientation.y,msg.pose.pose.orientation.z,msg.pose.pose.orientation.w])[2]
+      self.rear_axle_center.position.x = x
+      self.rear_axle_center.position.y = y
+      self.rear_axle_theta = theta
+      self.rear_axle_velocity.linear = msg.twist.twist.linear
+      self.rear_axle_velocity.angular = msg.twist.twist.angular
+      
+      pose_string = "{:0.2f},{:0.2f},{:0.3f}\n".format(self.rear_axle_center.position.x , self.rear_axle_center.position.y, theta)
 
-    cur_pos_2d = np.array([x,y])
-    position_error = np.round(np.abs(np.linalg.norm(self.waypoints[:,:2]-cur_pos_2d,axis=1)),decimals=2)
-    angle_error = np.round(np.abs(np.degrees(self.waypoints[:,2]-theta)),decimals=3)
-    waypoint_tol = 0.2 
-    waypoint_ang_tol = 5
-    pos_correct = position_error < waypoint_tol
-    ang_correct = angle_error < waypoint_ang_tol
-    both_correct = np.bitwise_and(ang_correct,pos_correct)
-    if both_correct.any():
-      way_idx = np.nonzero(both_correct)
-      wi = way_idx[0][0]
-      if wi not in self.waypoints_hit:
-        self.waypoints_hit.add(wi)
-        print("Got within <{} m,{} degrees> of waypoint {}.".format(position_error[wi], angle_error[wi],wi+1))
-        
-    self.last_pose_string = pose_string
-    
+      cur_pos_2d = np.array([x,y])
+      position_error = np.round(np.abs(np.linalg.norm(self.waypoints[:,:2]-cur_pos_2d,axis=1)),decimals=2)
+      angle_error = np.round(np.abs(np.degrees(self.waypoints[:,2]-theta)),decimals=3)
+      waypoint_tol = 0.2 
+      waypoint_ang_tol = 5
+      pos_correct = position_error < waypoint_tol
+      ang_correct = angle_error < waypoint_ang_tol
+      both_correct = np.bitwise_and(ang_correct,pos_correct)
+      if both_correct.any():
+        way_idx = np.nonzero(both_correct)
+        wi = way_idx[0][0]
+        if wi not in self.waypoints_hit:
+          self.waypoints_hit.add(wi+1)
+          print("Got within <{} m,{} degrees> of waypoint {}.".format(position_error[wi], angle_error[wi],wi+1))
+          if self.is_not_done == False:
+            self.trajectory_file.write("{}".format(list(self.waypoints_hit)))
+            print("Done!!")
+            rospy.signal_shutdown("DONE")
+
+      self.last_pose_string = pose_string
+      
 
    
 
     # Stop when end of waypoints
 
     
-    if self.got_waypoints:
       dist_to_goal = np.linalg.norm(self.spline_points[-1,0:2] - cur_pos_2d)
       ang_to_goal = np.linalg.norm(self.waypoints[-1,2]-theta)
-      if (dist_to_goal < waypoint_tol and ang_to_goal < waypoint_ang_tol) and self.is_not_done:
-        self.trajectory_file.write("{}".format(list(self.waypoints_hit)))
-        print("Done!!")
+      print ("goal errr: [{},{}]".format(dist_to_goal,ang_to_goal))
+      if dist_to_goal < waypoint_tol*2:
+        self.trajectory_file.write("{}\n".format(list(self.waypoints_hit)))
+
+      if (dist_to_goal < waypoint_tol*2 and ang_to_goal < waypoint_ang_tol*2) and self.is_not_done:
         self.is_not_done = False
+        print("Self.isDone")
 
 # ---------------------------------------------
 
