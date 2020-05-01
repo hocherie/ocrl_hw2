@@ -115,9 +115,10 @@ class LqrNode:
       ang_correct = angle_error < waypoint_ang_tol
       both_correct = np.bitwise_and(ang_correct,pos_correct)
       if both_correct.any():
+        print("\n\n\n\n\n\n\n\nHIT!!!!!\n\n\n\n\n\n")
         way_idx = np.nonzero(both_correct)
         wi = way_idx[0][0]
-        if wi not in self.waypoints_hit:
+        if wi+1 not in self.waypoints_hit:
           self.waypoints_hit.add(wi+1)
           print("Got within <{} m,{} degrees> of waypoint {}.".format(position_error[wi], angle_error[wi],wi+1))
           if self.is_not_done == False:
@@ -135,7 +136,7 @@ class LqrNode:
     
       dist_to_goal = np.linalg.norm(self.spline_points[-1,0:2] - cur_pos_2d)
       ang_to_goal = np.linalg.norm(self.waypoints[-1,2]-theta)
-      print ("goal errr: [{},{}]".format(dist_to_goal,ang_to_goal))
+      print ("goal errr: [{},{}] bound: [{}{}]".format(dist_to_goal,ang_to_goal,waypoint_tol,waypoint_ang_tol))
       if dist_to_goal < waypoint_tol*2:
         self.trajectory_file.write("{}\n".format(list(self.waypoints_hit)))
 
