@@ -32,7 +32,13 @@ class LqrNode:
     self.lqr_params['maxsimtime'] = 20.0
     self.lqr_params['goal_dis'] = 0.3
     self.lqr_params['stop_speed'] = 0.05
-    self.lqr_params['lqr_Q'] = q_gain*np.eye(5)
+    
+    # self.lqr_params['lqr_Q'] = q_gain*np.eye(5)
+    Qeye = 0.01 * np.eye(5)
+    Qeye[0,0] = 1.
+    Qeye[2,2] = 1.
+    self.lqr_params['lqr_Q'] = q_gain * Qeye
+
     self.lqr_params['lqr_R'] = r_gain*np.eye(2)
     self.lqr_params['wheelbase'] = 0.335
     self.lqr_params['max_steer'] = np.deg2rad(20.0)
@@ -224,10 +230,9 @@ if __name__ == '__main__':
   rospy.init_node('lqr_node')
   rospy.loginfo('lqr_node initialized')
   
-
-  max_speed = 3
-  q_gain = 1
-  r_gain = 1
+  max_speed = 6.
+  q_gain = 1.
+  r_gain = 0.1
   turning_radius = 2.5
   with open("speed{}_Q{}_R{}_rad{}.txt".format(max_speed,q_gain,r_gain,turning_radius),'w') as f: 
     node = LqrNode(max_speed,q_gain,r_gain,turning_radius,f)
