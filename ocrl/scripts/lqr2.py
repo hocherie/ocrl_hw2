@@ -179,8 +179,9 @@ class LqrNode:
 
       T = self.lqr_params['maxsimtime']
       goal_dis = self.lqr_params['goal_dis']
-      stop_speed = self.lqr_params[
-R']
+      stop_speed = self.lqr_params['stop_speed']
+      lqr_Q = self.lqr_params['lqr_Q']
+      lqr_R = self.lqr_params['lqr_R']
       dt = self.lqr_params['dt']
       wheelbase = self.lqr_params['wheelbase']
 
@@ -205,8 +206,11 @@ R']
       track_pose_msg.header.frame_id = '/map'
       track_pose_msg.pose.position.x = cx[target_ind]
       track_pose_msg.pose.position.y = cy[target_ind]
-      quat = quaternion_from_euler(
-ion.z = quat[2]
+      quat = quaternion_from_euler(0,0,cyaw[target_ind])
+      track_pose_msg.pose.orientation.x = quat[0]
+      track_pose_msg.pose.orientation.y = quat[1]
+      track_pose_msg.pose.orientation.z = quat[2]
+
       track_pose_msg.pose.orientation.w = quat[3]
 
       self.track_point_pub.publish(track_pose_msg)
